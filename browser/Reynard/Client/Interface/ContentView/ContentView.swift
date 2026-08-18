@@ -107,6 +107,7 @@ final class ContentView: UIView, UIGestureRecognizerDelegate {
         configureHierarchy()
         configureConstraints()
         configureHistoryNavigation()
+        configureObservers()
         applyState()
     }
     
@@ -116,6 +117,21 @@ final class ContentView: UIView, UIGestureRecognizerDelegate {
     
     deinit {
         focusedInputTask?.cancel()
+        NotificationCenter.default.removeObserver(self)
+    }
+    
+    override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+        guard !super.point(inside: point, with: event) else {
+            return true
+        }
+        guard !webContentView.isHidden,
+              webContentView.isUserInteractionEnabled else {
+            return false
+        }
+        return webContentView.point(
+            inside: webContentView.convert(point, from: self),
+            with: event
+        )
     }
     
     // MARK: - Configuration
@@ -195,6 +211,15 @@ final class ContentView: UIView, UIGestureRecognizerDelegate {
         webContentView.onVerticalScroll = { [weak self] delta in
             self?.onVerticalScroll?(delta)
         }
+    }
+    
+    private func configureObservers() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appearanceGestureSettingsDidChange),
+            name: .appearanceGestureSettingsDidChange,
+            object: nil
+        )
     }
     
     // MARK: - Layout
@@ -820,8 +845,13 @@ final class ContentView: UIView, UIGestureRecognizerDelegate {
         state == .browsing &&
         webContentView.visibility == .visible &&
         layoutState.mode != .fullscreen &&
+        Prefs.AppearanceSettings.pullToRefreshEnabled &&
         isHistoryNavigationIdle
         webContentView.setPullToRefreshEnabled(isEnabled)
+    }
+    
+    @objc private func appearanceGestureSettingsDidChange() {
+        updatePullToRefreshAvailability()
     }
     
     func finishHistoryLoad() {
